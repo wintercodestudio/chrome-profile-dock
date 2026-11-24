@@ -1,0 +1,111 @@
+-- Chrome Profile Dock: switch logic.
+-- The helper app runs this with a chromeprofile://<key> URL. install.sh fills in the profile table.
+-- Edit this file's installed copy and recompile it with osacompile; the helper app never needs re-signing.
+
+on run {u}
+	set profKey to text 17 thru -1 of u -- after "chromeprofile://"
+	set table to {%%TABLE%%}
+	repeat with r in table
+		if item 1 of r is profKey then
+			try
+				switchTo(item 2 of r, item 3 of r)
+			on error e number k
+				logLine("ERROR " & profKey & " " & k & " " & e)
+			end try
+			return
+		end if
+	end repeat
+	logLine("unknown profile key " & profKey)
+end run
+
+on logLine(t)
+	do shell script "echo \"$(date '+%Y-%m-%d %H:%M:%S') \"" & quoted form of t & " >> ~/Library/Logs/ChromeProfileDock.log"
+end logLine
+
+-- Chrome titles a window "<tab title> - Google Chrome - <profile>" or "... - Google Chrome - <person> (<profile>)".
+on matches(n, label)
+	return (n ends with ("Google Chrome - " & label)) or (n ends with ("(" & label & ")"))
+end matches
+
+on hasWindow(label)
+	tell application "System Events" to set ns to name of windows of process "Google Chrome"
+	repeat with n in ns
+		if my matches(n as text, label) then return true
+	end repeat
+	return false
+end hasWindow
+
+-- Chrome's own id of the front-most window of this profile, or missing value.
+-- Chrome's scripting does not expose profiles, so each unnamed window briefly gets a name
+-- ("cpd-<id>"). The window title the system sees then names both the window and its profile.
+-- Windows the user named keep their names; their title shows that name instead.
+on profileWindowId(label)
+	set marked to {}
+	tell application "Google Chrome"
+		repeat with w in windows
+			if given name of w is "" then
+				set given name of w to "cpd-" & (id of w)
+				set end of marked to id of w
+			end if
+		end repeat
+	end tell
+	delay 0.15
+	tell application "System Events" to set ns to name of windows of process "Google Chrome"
+	set prefixes to {}
+	repeat with n in ns
+		set n to n as text
+		if my matches(n, label) then
+			set AppleScript's text item delimiters to " - Google Chrome - "
+			set parts to text items of n
+			set end of prefixes to (items 1 thru -2 of parts) as text
+			set AppleScript's text item delimiters to ""
+		end if
+	end repeat
+	set found to missing value
+	tell application "Google Chrome"
+		-- Windows are listed front to back, so the first hit is the most recent one.
+		repeat with w in windows
+			if found is missing value and prefixes contains (given name of w) then set found to id of w
+		end repeat
+		repeat with i in marked
+			try
+				set given name of (first window whose id is i) to ""
+			end try
+		end repeat
+	end tell
+	return found
+end profileWindowId
+
+on raiseWindow(label)
+	set wid to profileWindowId(label)
+	if wid is missing value then return false
+	tell application "Google Chrome"
+		set w to first window whose id is wid
+		try
+			set minimized of w to false
+		end try
+		-- Chrome's own ordering: raising through Accessibility races with app activation.
+		set index of w to 1
+		activate
+	end tell
+	return true
+end raiseWindow
+
+on switchTo(dir, label)
+	set chromeRunning to application "Google Chrome" is running
+	if chromeRunning then
+		if raiseWindow(label) then return
+	end if
+	do shell script "open -n -a 'Google Chrome' --args --profile-directory=" & quoted form of dir
+	if not chromeRunning then return -- a fresh start restores the session by itself
+	-- The profile's window may open behind others: wait for it, then raise it.
+	repeat 40 times
+		delay 0.25
+		if hasWindow(label) then
+			delay 0.3
+			if not raiseWindow(label) then logLine("opened but could not raise " & label)
+			return
+		end if
+	end repeat
+	logLine("no window appeared for " & label)
+end switchTo
