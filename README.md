@@ -11,7 +11,7 @@ Without this, `open -a "Google Chrome" --args --profile-directory=...` opens a *
 ## Install
 
 ```bash
-git clone https://github.com/<you>/chrome-profile-dock.git
+git clone https://github.com/wintercodestudio/chrome-profile-dock.git
 cd chrome-profile-dock
 ./install.sh          # lists your profiles, asks, then builds the apps in ~/Applications
 ```
@@ -86,7 +86,7 @@ Icon là logo Chrome, có ảnh đại diện (hoặc chữ cái đầu) của p
 **Cài đặt:**
 
 ```bash
-git clone https://github.com/<you>/chrome-profile-dock.git
+git clone https://github.com/wintercodestudio/chrome-profile-dock.git
 cd chrome-profile-dock
 ./install.sh
 ```
